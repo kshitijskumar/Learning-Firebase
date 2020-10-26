@@ -3,6 +3,7 @@ package com.example.learningfirebase
 import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.android.synthetic.main.activity_main.*
@@ -60,6 +61,10 @@ class MainActivity : AppCompatActivity() {
                         if(it.isSuccessful){
                             Toast.makeText(this,"User logged in with email ${auth.currentUser?.email}",Toast.LENGTH_SHORT).show()
                         }
+                    }
+                    .addOnFailureListener {
+                        Toast.makeText(this,it.message,Toast.LENGTH_SHORT).show()
+                        Log.d("Signin New",it.message!!)
                     }
             }catch (e: Exception){
                 Toast.makeText(this, "Something went wrong in catch",Toast.LENGTH_SHORT).show()
