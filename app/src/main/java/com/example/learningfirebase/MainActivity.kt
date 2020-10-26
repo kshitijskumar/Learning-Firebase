@@ -1,15 +1,11 @@
 package com.example.learningfirebase
 
+import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.android.synthetic.main.activity_main.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.lang.Exception
 
 class MainActivity : AppCompatActivity() {
@@ -21,8 +17,33 @@ class MainActivity : AppCompatActivity() {
 
         auth= FirebaseAuth.getInstance()
 
+        getUserLoggedInState()
         btnSignIn.setOnClickListener {
             registerUser()
+        }
+
+        btnLogIn.setOnClickListener {
+            logInExistingUser()
+        }
+
+        btnCurrentUser.setOnClickListener {
+            if(auth.currentUser==null){
+                Toast.makeText(this, "No user logged in",Toast.LENGTH_SHORT).show()
+            }else{
+                Toast.makeText(this,"current user: ${auth.currentUser}",Toast.LENGTH_SHORT).show()
+            }
+        }
+
+
+    }
+
+    private fun getUserLoggedInState(){
+        val currentUser= auth.currentUser
+        if(currentUser!=null){
+            val intent= Intent(this,LoggedInActivity::class.java)
+            startActivity(intent)
+        }else{
+            Toast.makeText(this,"Login first",Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -33,32 +54,45 @@ class MainActivity : AppCompatActivity() {
         if(userName.isEmpty() || password.isEmpty()){
             Toast.makeText(this,"Fields can't be left empty",Toast.LENGTH_SHORT).show()
         }else{
-            Log.d("Main Activity","In coroutine scope ${Thread.currentThread().name}")
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    Log.d("Main Activity","In  try block coroutine scope ${Thread.currentThread().name}")
-                    auth.createUserWithEmailAndPassword(userName,password)
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(this@MainActivity,"User registered",Toast.LENGTH_SHORT).show()
-                        currentUserStatus()
+            try{
+                auth.createUserWithEmailAndPassword(userName,password)
+                    .addOnCompleteListener {
+                        if(it.isSuccessful){
+                            Toast.makeText(this,"User logged in with email ${auth.currentUser?.email}",Toast.LENGTH_SHORT).show()
+                        }
                     }
-                }catch (e: Exception){
-                    Log.d("Main Activity",e.message!!)
-                    withContext(Dispatchers.Main){
-                        Toast.makeText(this@MainActivity,"Something went wrong. Try again",
-                        Toast.LENGTH_SHORT).show()
-                    }
-                }
-
+            }catch (e: Exception){
+                Toast.makeText(this, "Something went wrong in catch",Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    private fun currentUserStatus(){
-        if(auth.currentUser==null){
-            Toast.makeText(this,"Not logged in",Toast.LENGTH_SHORT).show()
+    private fun logInExistingUser(){
+        val username= etEmail.text.toString()
+        val password= etPassword.text.toString()
+        if (username.isEmpty() || password.isEmpty()){
+            Toast.makeText(this,"Fields can't be empty",Toast.LENGTH_SHORT).show()
         }else{
-            Toast.makeText(this,"User logged in with ${auth.currentUser}",Toast.LENGTH_SHORT).show()
+            try{
+                auth.signInWithEmailAndPassword(username, password)
+                    .addOnCompleteListener {
+                        if (it.isSuccessful) {
+                            Toast.makeText(
+                                this,
+                                "Logged in as ${auth.currentUser?.email}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            val intent = Intent(this, LoggedInActivity::class.java)
+                            startActivity(intent)
+                        } else {
+                            Toast.makeText(this, "Something went wrong", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+            }catch (e: Exception){
+                Toast.makeText(this,"Something went wrong in catch",Toast.LENGTH_SHORT).show()
+            }
         }
     }
+
+
 }
