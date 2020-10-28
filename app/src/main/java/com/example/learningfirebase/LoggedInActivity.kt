@@ -15,6 +15,7 @@ import kotlinx.android.synthetic.main.activity_logged_in.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
 class LoggedInActivity : AppCompatActivity() {
@@ -74,10 +75,9 @@ class LoggedInActivity : AppCompatActivity() {
 
             try {
                 firestore.collection("person").document(auth.currentUser?.uid!!)
-                    .set(map, SetOptions.merge())
+                    .set(map, SetOptions.merge()).await()
                 uploadImageAndGetUrl()
-
-
+                
             }catch (e: Exception){
                 withContext(Dispatchers.Main){
                     Log.d("Catch BLock",e.message!!)
@@ -85,31 +85,53 @@ class LoggedInActivity : AppCompatActivity() {
                 }
             }
     }
+//    Java way
+
+//    private fun uploadImageAndGetUrl()= CoroutineScope(Dispatchers.IO).launch {
+//        try {
+//            storage.child("image.jpeg").putFile(uri!!)
+//                    .continueWithTask {
+//                        storage.child("image.jpeg").downloadUrl
+//                    }
+//                    .addOnSuccessListener {
+//                        val map= HashMap<String, String?>()
+//                        map["imageUrl"]= it.toString()
+//                        CoroutineScope(Dispatchers.IO).launch {
+//                            try {
+//                                firestore.collection("person").document(auth.currentUser?.uid!!)
+//                                        .set(map, SetOptions.merge())
+//                            }catch (e: Exception){
+//                                Log.d("InCatchUpdatingUser", e.message.toString())
+//                            }
+//                        }
+//                    }
+//
+//
+//        }catch (e: Exception){
+//            withContext(Dispatchers.Main){
+//                Toast.makeText(this@LoggedInActivity, "Something went wrong in catch", Toast.LENGTH_SHORT).show()
+//                Log.d("InCatch",e.message.toString())
+//            }
+//        }
+//    }
+
+    // Kotlin way
 
     private fun uploadImageAndGetUrl()= CoroutineScope(Dispatchers.IO).launch {
         try {
-            storage.child("image.jpeg").putFile(uri!!)
-                    .continueWithTask {
-                        storage.child("image.jpeg").downloadUrl
-                    }
-                    .addOnSuccessListener {
-                        val map= HashMap<String, String?>()
-                        map["imageUrl"]= it.toString()
-                        CoroutineScope(Dispatchers.IO).launch {
-                            try {
-                                firestore.collection("person").document(auth.currentUser?.uid!!)
-                                        .set(map, SetOptions.merge())
-                            }catch (e: Exception){
-                                Log.d("InCatchUpdatingUser", e.message.toString())
-                            }
-                        }
-                    }
-
-
+            storage.child("image_ktx.jpeg").putFile(uri!!).await()
+            val url= storage.child("image_ktx.jpeg").downloadUrl.await()
+            val map= HashMap<String, String?>()
+            map["imageUrl"]= url.toString()
+            firestore.collection("person").document(auth.currentUser?.uid!!)
+                    .set(map, SetOptions.merge()).await()
+            withContext(Dispatchers.Main){
+                Toast.makeText(this@LoggedInActivity, "Url saved as $url", Toast.LENGTH_SHORT).show()
+            }
         }catch (e: Exception){
             withContext(Dispatchers.Main){
                 Toast.makeText(this@LoggedInActivity, "Something went wrong in catch", Toast.LENGTH_SHORT).show()
-                Log.d("InCatch",e.message.toString())
+                Log.d("UploadImage", e.message.toString())
             }
         }
     }
