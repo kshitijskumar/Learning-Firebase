@@ -1,11 +1,16 @@
 package com.example.learningfirebase
 
+import android.content.Intent
+import android.net.Uri
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
+import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageReference
 import kotlinx.android.synthetic.main.activity_logged_in.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,12 +21,18 @@ class LoggedInActivity : AppCompatActivity() {
 
     private lateinit var auth: FirebaseAuth
     private lateinit var firestore: FirebaseFirestore
+    private lateinit var storage: StorageReference
+    private var uri: Uri?= null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_logged_in)
 
         auth= FirebaseAuth.getInstance()
         firestore= FirebaseFirestore.getInstance()
+        storage= FirebaseStorage.getInstance().reference
+
+        Log.d("Thread Info",Thread.currentThread().name)
         Toast.makeText(this,"Current user: ${auth.currentUser}",Toast.LENGTH_SHORT).show()
 
         btnSignOut.setOnClickListener {
@@ -30,22 +41,42 @@ class LoggedInActivity : AppCompatActivity() {
         }
 
         btnAdd.setOnClickListener {
-            addUserData()
+            val name= etName.text.toString()
+            val surname= etSurname.text.toString()
+            val map= HashMap<String, String?>()
+            if(name.isNotEmpty()){
+                map["name"]= name
+            }
+            if(surname.isNotEmpty()){
+                map["surname"]= surname
+            }
+            addUserData(map)
+        }
+
+        btnAddImage.setOnClickListener {
+            Intent(Intent.ACTION_GET_CONTENT).apply {
+                this.type= "image/*"
+                startActivityForResult(this, 0)
+            }
         }
     }
 
-    private fun addUserData(){
-        val name= etName.text.toString()
-        val surname= etSurname.text.toString()
-        val person= Person(name,surname)
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
 
-        CoroutineScope(Dispatchers.IO).launch {
+        if(requestCode==0 && resultCode== RESULT_OK){
+            uri= data?.data
+            ivImage.setImageURI(uri)
+        }
+    }
+
+    private fun addUserData(map: Map<String, String?>)=CoroutineScope(Dispatchers.IO).launch {
+
             try {
                 firestore.collection("person").document(auth.currentUser?.uid!!)
-                    .set(person)
-                withContext(Dispatchers.Main){
-                    Toast.makeText(this@LoggedInActivity,"Data added",Toast.LENGTH_SHORT).show()
-                }
+                    .set(map, SetOptions.merge())
+                uploadImageAndGetUrl()
+
 
             }catch (e: Exception){
                 withContext(Dispatchers.Main){
@@ -53,6 +84,34 @@ class LoggedInActivity : AppCompatActivity() {
                     Toast.makeText(this@LoggedInActivity,e.message,Toast.LENGTH_SHORT).show()
                 }
             }
+    }
+
+    private fun uploadImageAndGetUrl()= CoroutineScope(Dispatchers.IO).launch {
+        try {
+            storage.child("image.jpeg").putFile(uri!!)
+                    .continueWithTask {
+                        storage.child("image.jpeg").downloadUrl
+                    }
+                    .addOnSuccessListener {
+                        val map= HashMap<String, String?>()
+                        map["imageUrl"]= it.toString()
+                        CoroutineScope(Dispatchers.IO).launch {
+                            try {
+                                firestore.collection("person").document(auth.currentUser?.uid!!)
+                                        .set(map, SetOptions.merge())
+                            }catch (e: Exception){
+                                Log.d("InCatchUpdatingUser", e.message.toString())
+                            }
+                        }
+                    }
+
+
+        }catch (e: Exception){
+            withContext(Dispatchers.Main){
+                Toast.makeText(this@LoggedInActivity, "Something went wrong in catch", Toast.LENGTH_SHORT).show()
+                Log.d("InCatch",e.message.toString())
+            }
         }
     }
+
 }
