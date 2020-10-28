@@ -36,6 +36,9 @@ class LoggedInActivity : AppCompatActivity() {
         Log.d("Thread Info",Thread.currentThread().name)
         Toast.makeText(this,"Current user: ${auth.currentUser}",Toast.LENGTH_SHORT).show()
 
+        getRealTimeUpdatesOfCollection()
+        getRealTimeUpdatesOfDocument()
+
         btnSignOut.setOnClickListener {
             auth.signOut()
             finish()
@@ -44,7 +47,7 @@ class LoggedInActivity : AppCompatActivity() {
         btnAdd.setOnClickListener {
             val name= etName.text.toString()
             val surname= etSurname.text.toString()
-            val map= HashMap<String, String?>()
+            val map= HashMap<String, String>()
             if(name.isNotEmpty()){
                 map["name"]= name
             }
@@ -73,67 +76,70 @@ class LoggedInActivity : AppCompatActivity() {
 
     private fun addUserData(map: Map<String, String?>)=CoroutineScope(Dispatchers.IO).launch {
 
-            try {
-                firestore.collection("person").document(auth.currentUser?.uid!!)
+        try {
+            firestore.collection("person").document(auth.currentUser?.uid!!)
                     .set(map, SetOptions.merge()).await()
-                uploadImageAndGetUrl()
-                
-            }catch (e: Exception){
-                withContext(Dispatchers.Main){
-                    Log.d("Catch BLock",e.message!!)
-                    Toast.makeText(this@LoggedInActivity,e.message,Toast.LENGTH_SHORT).show()
-                }
+            uploadImageAndGetUrl()
+
+        } catch (e: Exception) {
+            withContext(Dispatchers.Main) {
+                Log.d("Catch BLock", e.message!!)
+                Toast.makeText(this@LoggedInActivity, e.message, Toast.LENGTH_SHORT).show()
             }
+        }
     }
-//    Java way
-
-//    private fun uploadImageAndGetUrl()= CoroutineScope(Dispatchers.IO).launch {
-//        try {
-//            storage.child("image.jpeg").putFile(uri!!)
-//                    .continueWithTask {
-//                        storage.child("image.jpeg").downloadUrl
-//                    }
-//                    .addOnSuccessListener {
-//                        val map= HashMap<String, String?>()
-//                        map["imageUrl"]= it.toString()
-//                        CoroutineScope(Dispatchers.IO).launch {
-//                            try {
-//                                firestore.collection("person").document(auth.currentUser?.uid!!)
-//                                        .set(map, SetOptions.merge())
-//                            }catch (e: Exception){
-//                                Log.d("InCatchUpdatingUser", e.message.toString())
-//                            }
-//                        }
-//                    }
-//
-//
-//        }catch (e: Exception){
-//            withContext(Dispatchers.Main){
-//                Toast.makeText(this@LoggedInActivity, "Something went wrong in catch", Toast.LENGTH_SHORT).show()
-//                Log.d("InCatch",e.message.toString())
-//            }
-//        }
-//    }
-
     // Kotlin way
 
     private fun uploadImageAndGetUrl()= CoroutineScope(Dispatchers.IO).launch {
-        try {
-            storage.child("image_ktx.jpeg").putFile(uri!!).await()
-            val url= storage.child("image_ktx.jpeg").downloadUrl.await()
-            val map= HashMap<String, String?>()
-            map["imageUrl"]= url.toString()
-            firestore.collection("person").document(auth.currentUser?.uid!!)
-                    .set(map, SetOptions.merge()).await()
-            withContext(Dispatchers.Main){
-                Toast.makeText(this@LoggedInActivity, "Url saved as $url", Toast.LENGTH_SHORT).show()
-            }
-        }catch (e: Exception){
-            withContext(Dispatchers.Main){
-                Toast.makeText(this@LoggedInActivity, "Something went wrong in catch", Toast.LENGTH_SHORT).show()
-                Log.d("UploadImage", e.message.toString())
+        if (uri!= null) {
+            try {
+                storage.child("image_ktx.jpeg").putFile(uri!!).await()
+                val url = storage.child("image_ktx.jpeg").downloadUrl.await()
+                val map = HashMap<String, String?>()
+                map["imageUrl"] = url.toString()
+                firestore.collection("person").document(auth.currentUser?.uid!!)
+                        .set(map, SetOptions.merge()).await()
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@LoggedInActivity, "Url saved as $url", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@LoggedInActivity, "Something went wrong in catch", Toast.LENGTH_SHORT).show()
+                    Log.d("UploadImage", e.message.toString())
+                }
             }
         }
+    }
+// To get the data for a collection
+
+    private fun getRealTimeUpdatesOfCollection(){
+        firestore.collection("person").addSnapshotListener { value, error ->
+            if (error==null){
+                if (value!= null){
+                    val sb= StringBuilder()
+                    for (document in value){
+                        val person= document.toObject(Person::class.java)
+                        sb.append("${person.name}\n")
+                    }
+                    tvData.text= sb.toString()
+                }
+            }else{
+                Log.d("Query", "$error")
+            }
+        }
+    }
+
+// To get data of a particular document
+    private fun getRealTimeUpdatesOfDocument(){
+        firestore.collection("person").document(auth.currentUser?.uid!!)
+                .addSnapshotListener { value, error ->
+                    if (error== null){
+                        if (value!= null){
+                            val person= value.toObject(Person::class.java)
+                            tvData.text= person.toString()
+                        }
+                    }
+                }
     }
 
 }
